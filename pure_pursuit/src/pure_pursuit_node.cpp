@@ -13,6 +13,7 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
 /// CHECK: include needed ROS msg type headers and libraries
+using std::placeholders::_1;
 
 using namespace std;
 
@@ -27,7 +28,18 @@ public:
     PurePursuit() : Node("pure_pursuit_node")
     {
         // TODO: create ROS subscribers and publishers
+        publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 2);
+        subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            lidarscan_topic, 2, std::bind(&PurePursuit::pose_callback, this, _1)
+        );
     }
+
+    std::string lidarscan_topic = "/scan";
+    std::string drive_topic = "/drive";
+
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscriber_;
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
+
 
     void pose_callback(const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg)
     {

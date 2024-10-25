@@ -5,13 +5,16 @@
 //  Created by Taylor Gauthier on 10/24/24.
 //
 
-#include <ros/ros.h>
-#include <nav_msgs/Odometry.h>
+#include "rclcpp/rclcpp.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <ctime>
-#include <tf/tf.h>
+// #include <tf/tf.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Quaternion.h>
 #include <cmath>
 #include <string>
 
@@ -26,7 +29,7 @@ std::string getLogFileName() {
     return std::string(buf);
 }
 
-void saveWaypoint(const nav_msgs::Odometry::ConstPtr& data) {
+void saveWaypoint(const nav_msgs::msg::Odometry::ConstPtr& data) {
     // Extract quaternion
     double qx = data->pose.pose.orientation.x;
     double qy = data->pose.pose.orientation.y;
@@ -34,8 +37,8 @@ void saveWaypoint(const nav_msgs::Odometry::ConstPtr& data) {
     double qw = data->pose.pose.orientation.w;
 
     // Convert quaternion to Euler angles
-    tf::Quaternion quat(qx, qy, qz, qw);
-    tf::Matrix3x3 mat(quat);
+    tf2::Quaternion quat(qx, qy, qz, qw);
+    tf2::Matrix3x3 mat(quat);
     double roll, pitch, yaw;
     mat.getRPY(roll, pitch, yaw);
 
@@ -59,22 +62,20 @@ void shutdown() {
     if (file.is_open()) {
         file.close();
     }
-    ROS_INFO("Goodbye");
+    // ROS_INFO("Goodbye");
 }
 
 int main(int argc, char** argv) {
-    ros::init(argc, argv, "waypoints_logger");
-    ros::NodeHandle nh;
-
+    rclcpp::init(argc, argv);
+    rclcpp::Node::SharedPtr node = rclcpp::Node::make_shared("logger");
+    auto subscription = node->create_subscription<nav_msgs::msg::Odometry>("pf/pose/odom",1000,saveWaypoint);
     std::string logFileName = getLogFileName();
     file.open(logFileName.c_str());
-
-    ros::Subscriber sub = nh.subscribe("pf/pose/odom", 1000, saveWaypoint);
-    ros::onShutdown(shutdown);
-
-    ROS_INFO("Saving waypoints...");
-    ros::spin();
-
+    // auto qos_profile = rclcpp::QoS(rclcpp::KeepLast(100));
+    // ROS_INFO("Saving waypoints...");
+    rclcpp::spin(node);
+    rclcpp::shutdown();
+    shutdown();
     return 0;
 }
 
