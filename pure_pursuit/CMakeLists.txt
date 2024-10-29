@@ -35,26 +35,35 @@ include_directories(
   ${EIGEN3_INCLUDE_DIRS}
 )
 
+install(DIRECTORY 
+  launch 
+  DESTINATION share/${PROJECT_NAME}
+)
+
 # Create Cpp executable
 add_executable(pure_pursuit_node src/pure_pursuit_node.cpp)
-
-ament_target_dependencies(pure_pursuit_node 
+ament_target_dependencies(pure_pursuit_node  
+  rclcpp geometry_msgs ackermann_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2_ros
+)
+add_executable(logger_node src/logger.cpp)
+ament_target_dependencies(logger_node  
   rclcpp geometry_msgs ackermann_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2_ros
 )
 
 # Install Cpp executables
 install(TARGETS
   pure_pursuit_node
+  logger_node
   DESTINATION lib/${PROJECT_NAME})
 
 # Install Python modules
-ament_python_install_package(${PROJECT_NAME})
+# ament_python_install_package(${PROJECT_NAME})
 
 # Install Python executables
-install(PROGRAMS
-  scripts/pure_pursuit_node.py
-  DESTINATION lib/${PROJECT_NAME}
-)
+# install(PROGRAMS
+#   scripts/pure_pursuit_node.py
+#   DESTINATION lib/${PROJECT_NAME}
+# )
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

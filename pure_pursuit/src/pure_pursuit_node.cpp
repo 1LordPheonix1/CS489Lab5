@@ -28,10 +28,10 @@ public:
     PurePursuit() : Node("pure_pursuit_node")
     {
         // TODO: create ROS subscribers and publishers
-        publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 2);
-        subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            lidarscan_topic, 2, std::bind(&PurePursuit::pose_callback, this, _1)
-        );
+        // publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 2);
+        // subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+        //     lidarscan_topic, 2, std::bind(&PurePursuit::pose_callback, this, _1)
+        // );
     }
 
     std::string lidarscan_topic = "/scan";
@@ -44,6 +44,7 @@ public:
     void pose_callback(const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg)
     {
         // TODO: find the current waypoint to track using methods mentioned in lecture
+
 
         // TODO: transform goal point to vehicle frame of reference
 
