@@ -2,7 +2,7 @@
 #include <string>
 #include <cmath>
 #include <vector>
-
+#include "geometry_msgs/msg/pose.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "nav_msgs/msg/odometry.hpp"
@@ -12,49 +12,80 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
-/// CHECK: include needed ROS msg type headers and libraries
-using std::placeholders::_1;
 
-using namespace std;
+using std::placeholders::_1;
 
 class PurePursuit : public rclcpp::Node
 {
-    // Implement PurePursuit
-    // This is just a template, you are free to implement your own node!
-
 private:
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscriber;
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher;
 
-public:
+    // Define parameters
+    double lookahead_distance = 1.0; // Lookahead distance for Pure Pursuit
+    double max_steering_angle = 24.0; // Max steering angle in degrees
+    double speed = 1.0; // Desired speed
+    std::string pose_topic = "/pose";       // Our car pose topic
+    std::string drive_topic = "/drive";     // Drive topic
+
+public: 
     PurePursuit() : Node("pure_pursuit_node")
     {
-        // TODO: create ROS subscribers and publishers
-        // publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 2);
-        // subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-        //     lidarscan_topic, 2, std::bind(&PurePursuit::pose_callback, this, _1)
-        // );
+
+
+        // Initialize the publisher and subscriber
+        publisher = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>(drive_topic, 10);
+        subscriber = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            pose_topic, 10, std::bind(&PurePursuit::pose_callback, this, _1)
+        );
+
+        // Declare and get parameters
+        this->declare_parameter("distance", lookahead_distance);
+        this->declare_parameter("speed", speed);
+        this->get_parameter("distance", lookahead_distance);
+        this->get_parameter("speed", speed);
     }
 
-    std::string lidarscan_topic = "/scan";
-    std::string drive_topic = "/drive";
-
-    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscriber_;
-    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
 
 
-    void pose_callback(const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg)
-    {
-        // TODO: find the current waypoint to track using methods mentioned in lecture
+void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg)
+{
+    // Calculate the lookahead target point in global coordinates
+    geometry_msgs::msg::Pose target_pose;
+    target_pose.position.x = pose_msg->pose.position.x + lookahead_distance;
+    target_pose.position.y = pose_msg->pose.position.y;
+
+    // Calculate the x and y the target point
+    double dx = target_pose.position.x - pose_msg->pose.position.x; //target x - our pose x
+    double dy = target_pose.position.y - pose_msg->pose.position.y; //target y - our pose y
+    
+    
+    //this in slide formula (day 17 slide 25) in a sence our triangle to a curve
+
+    double L = std::sqrt(dx * dx + dy * dy); //our L lookahead our (euclidean distance) ex tringle in picture
+    double y = std::abs(dy); //we need |dy| 
+    double r = (L * L) / (2 * y); //our r = ( L^2 ) / 2 |dy|
 
 
-        // TODO: transform goal point to vehicle frame of reference
+    double curvature = 1.0 / r; //we calculate our curvature on slide 26
 
-        // TODO: calculate curvature/steering angle
+    // Convert curvature to steering angle in degrees
+    double steering_angle_deg = std::atan(curvature) * (180.0 / M_PI);
+    //clamping steering angle
+    steering_angle_deg = std::max(std::min(steering_angle_deg, max_steering_angle), -max_steering_angle);
 
-        // TODO: publish drive message, don't forget to limit the steering angle.
-    }
+    // Create and publish the drive message
+    auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();
+    drive_msg.drive.steering_angle = steering_angle_deg; // now in degrees
+    drive_msg.drive.speed = speed;
+
+    publisher->publish(drive_msg);
+}
+
 
     ~PurePursuit() {}
 };
+
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
