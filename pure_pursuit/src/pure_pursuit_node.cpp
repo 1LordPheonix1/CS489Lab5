@@ -21,9 +21,9 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscriber;
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher;
 
-    // Define parameters
-    double lookahead_distance = 1.0; // Lookahead distance for Pure Pursuit
-    double max_steering_angle = 24.0; // Max steering angle in degrees
+    // Define params
+    double lookahead_distance = 1.0; // Lookahead distance
+    double max_steering_angle = 20.0; // Max steering angle
     double speed = 1.0; // Desired speed
     std::string pose_topic = "/pose";       // Our car pose topic
     std::string drive_topic = "/drive";     // Drive topic
@@ -39,7 +39,7 @@ public:
             pose_topic, 10, std::bind(&PurePursuit::pose_callback, this, _1)
         );
 
-        // Declare and get parameters
+        // Declare and get parameters from launch file 
         this->declare_parameter("distance", lookahead_distance);
         this->declare_parameter("speed", speed);
         this->get_parameter("distance", lookahead_distance);
@@ -50,12 +50,12 @@ public:
 
 void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg)
 {
-    // Calculate the lookahead target point in global coordinates
+    // Calculate the lookahead target point
     geometry_msgs::msg::Pose target_pose;
     target_pose.position.x = pose_msg->pose.position.x + lookahead_distance;
     target_pose.position.y = pose_msg->pose.position.y;
 
-    // Calculate the x and y the target point
+    // Calculate the x and y
     double dx = target_pose.position.x - pose_msg->pose.position.x; //target x - our pose x
     double dy = target_pose.position.y - pose_msg->pose.position.y; //target y - our pose y
     
