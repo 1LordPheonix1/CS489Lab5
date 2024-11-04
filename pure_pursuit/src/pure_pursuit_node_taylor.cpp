@@ -172,6 +172,29 @@ private:
      
     */
 
+
+    float dist(float x1, float x2, float y1, float y2){
+        return std::sqrt(std::pow((x2-x1), 2) + std::pow((y2-y1), 2));
+    }
+    
+    //
+    vector<float> find_best_waypoint(float l, float x_pos, float y_pos){
+        float x_target = pose_msg->pose.position.x + lookahead_distance;
+        float y_target = pose_msg->pose.position.y;
+        float min_diff = 100.0;
+        int index = 0;
+        
+        for (int i=0; i < waypoint_data.size(); i++){
+            //
+            float distance = dist(x_target, waypoint_data[i][0], y_target, waypoint_data[i][1]);
+            //float difference = std::fabs(waypoint_data[i][0] - target_pose.position.x);
+            if (distance < min_diff){
+                min_diff = distance;
+                index = i;
+            }
+        return waypoint_data[index];
+    }
+
 public:
     PurePursuit() : Node("pure_pursuit_node"){
         // TODO: create ROS subscribers and publishers
@@ -194,19 +217,49 @@ public:
 
         // read_record(); //read and visualize the way_points
         //pose_msg -> pose -> orientation -> x,y,z,w //quaternion (all floats)
-        /*
+       float L = 0.5;
         float steering_angle = 0.0;
         float speed = 0.0;
-        float x_pos = 0;
-        fstream fin;
-        // Open an existing file
-        fin.open("waypoints.csv", ios::in);
+        float x_pos = 0.0;
+        float y_pos = 0.0;
+        geometry_msgs::msg::Pose target_pose;
         // TODO: find the current waypoint to track using methods mentioned in lecture
         //use L and try to find the farsthest point within that circle
-        float L = 0.5;
+        // all data is in waypoint_data
+        //add transformation here to correct frame if needed
+        x_pos = pose_msg->pose.position.x;
+        y_pos = pose_msg->pose.position.y;
+        
+        vector<float> best_vector = find_best_waypoint(L, x_pos, y_pos);
+        
+    
+    
+    // Calculate the lookahead target point
+        target_pose.position.x = best_vector[1];
+        target_pose.position.y = best_vector[2];
+        //target_pose.position.x = pose_msg->pose.position.x + lookahead_distance;
+        //target_pose.position.y = pose_msg->pose.position.y;
+
+        // Calculate the x and y
+        double dx = target_pose.position.x - pose_msg->pose.position.x; //target x - our pose x
+        double dy = target_pose.position.y - pose_msg->pose.position.y; //target y - our pose y
         
         
-        // TODO: transform goal point to vehicle frame of reference
+        //this in slide formula (day 17 slide 25) in a sence our triangle to a curve
+
+        double L = std::sqrt(dx * dx + dy * dy); //our L lookahead our (euclidean distance) ex tringle in picture
+        double y = std::abs(dy); //we need |dy|
+        double r = (L * L) / (2 * y); //our r = ( L^2 ) / 2 |dy|
+
+
+        double curvature = 1.0 / r; //we calculate our curvature on slide 26
+
+        // Convert curvature to steering angle in degrees
+        double steering_angle_deg = std::atan(curvature) * (180.0 / M_PI);
+        //clamping steering angle
+        steering_angle_deg = std::max(std::min(steering_angle_deg, max_steering_angle), -max_steering_angle);
+    
+    // TODO: transform goal point to vehicle frame of reference
         
 
         // TODO: calculate curvature/steering angle
@@ -224,8 +277,7 @@ public:
         ackermann_drive_result.drive.steering_angle = steering_angle;
         ackermann_drive_result.drive.speed = speed;
         publisher_->publish(ackermann_drive_result);
-        fin.close();
-        */
+        
     }
 
     ~PurePursuit() {}
