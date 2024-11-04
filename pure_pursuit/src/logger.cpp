@@ -88,6 +88,8 @@ class Logger : public rclcpp::Node
     }
 
     ~Logger() {
+        
+        
         if (file.is_open()) {
             file.close();
         }

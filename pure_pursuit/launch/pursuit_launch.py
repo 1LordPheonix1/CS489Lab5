@@ -61,6 +61,6 @@ def generate_launch_description():
     )
 
     ld.add_action(pure_pursuit)
-    ld.add_action(logger)
+    # ld.add_action(logger)
     
     return ld

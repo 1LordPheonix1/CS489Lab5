@@ -8,9 +8,11 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "nav_msgs/msg/odometry.hpp"
+#include "geometry_msgs/msg/pose.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "visualization_msgs/msg/marker.hpp"
+#include "visualization_msgs/msg/marker_array.hpp"
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -27,8 +29,8 @@ class PurePursuit : public rclcpp::Node
 
 private:
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher2_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscriber_;
-    //rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_2;
     
     //main variables
     double lookahead_distance = 1.0; // Lookahead distance
@@ -45,12 +47,18 @@ private:
     //find a way to access the excel file
     
     void read_record(){
+        visualization_msgs::msg::Marker marker;
+        marker.header.frame_id = "map";
+        marker.action = visualization_msgs::msg::Marker::DELETEALL;
+        publisher2_->publish(marker);
+
         // File pointer
-        fstream fin;
+        std::fstream fin;
         
         // Open an existing file
-        fin.open("waypoints.csv", ios::in);
-        
+        fin.open("/sim_ws/src/pure_pursuit/src/waypoints.csv", std::ios::in);
+        RCLCPP_INFO(this->get_logger(), "file opened");
+
         // Get the roll number
         // of which the data is required
         float x_pos, y_pos, yaw, curr_speed = 0;
@@ -58,18 +66,17 @@ private:
         
         // Read the Data from the file
         // as String Vector
-        vector<string> row;
-        string line, word, temp;
+        std::vector<std::string> row;
+        std::string line, word, temp;
         
-        while (fin >> temp){
+        while (getline(fin, line)){
             row.clear();
             
             // read an entire row and
             // store it in a string variable 'line'
-            getline(fin, line);
             
             // used for breaking words
-            stringstream s(line);
+            std::istringstream s(line);
             
             // read every column data of a row and
             // store it in a string variable, 'word'
@@ -89,21 +96,14 @@ private:
             id++;
         }
         fin.close();
+        RCLCPP_INFO(this->get_logger(), "done");
     }
-    
-    //visualize waypoints
-    //make a function
-    
-    //publish to marker_array
-    
-    rclcpp::Publisher<visualization_msgs::msgs::Marker>::SharedPtr publisher_;
-    publisher2_ = this->create_subscription<visualization_msgs::msg::MarkerArray>(
-               "/visualization_marker", 0);
     
     
     void visualizer(float x_position, float y_position, int ID){
+        RCLCPP_INFO(this->get_logger(), "marker: %d", ID);
         visualization_msgs::msg::Marker marker;
-        marker.header.frame_id = "base_link";
+        marker.header.frame_id = "map";
         marker.header.stamp =  this->now();
         marker.ns = "my_namespace";
         marker.id = ID;
@@ -111,7 +111,7 @@ private:
         marker.action = visualization_msgs::msg::Marker::ADD;
         marker.pose.position.x = x_position;
         marker.pose.position.y = y_position;
-        marker.pose.position.z = 0;
+        marker.pose.position.z = 0.1;
         marker.pose.orientation.x = 0.0; //can get rid of default zero ones
         marker.pose.orientation.y = 0.0;
         marker.pose.orientation.z = 0.0;
@@ -120,8 +120,8 @@ private:
         marker.scale.y = 0.1;
         marker.scale.z = 0.1;
         marker.color.a = 1.0; // Don't forget to set the alpha!
-        marker.color.r = 0.0;
-        marker.color.g = 1.0;
+        marker.color.r = (float)ID/100.0;
+        marker.color.g = 1.0-((float)ID/100.0);
         marker.color.b = 0.0;
         publisher2_->publish(marker);
     }
@@ -176,15 +176,17 @@ public:
             //add parameters here if needed
         
         publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
-        //publisher2_ = this->create_subscription<visualization_msgs::msg::MarkerArray>(
-        //            "/visualization_marker_array", 0);
-        subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>("/pf/pose/odom", 10, std::bind(&PurePursuit::pose_callback, this, std::placeholders::_1));
-        ////pf/viz/inferred_pose (maybe)
+        publisher2_ = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker_array", 1000);
+        subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+            "pf/odom/pose", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
+        );        ////pf/viz/inferred_pose (maybe)
+        RCLCPP_INFO(this->get_logger(), "Reading records");
+        read_record();
     }
 
-    void pose_callback(const geometry_msgs::msg::PoseStamped::ConstPtr &pose_msg)
+    void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg)
     {
-        read_record(); //read and visualize the way_points
+        // read_record(); //read and visualize the way_points
         //pose_msg -> pose -> orientation -> x,y,z,w //quaternion (all floats)
         /*
         float steering_angle = 0.0;

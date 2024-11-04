@@ -41,7 +41,7 @@ install(DIRECTORY
 )
 
 # Create Cpp executable
-add_executable(pure_pursuit_node src/pure_pursuit_node.cpp)
+add_executable(pure_pursuit_node src/pure_pursuit_node_taylor.cpp)
 ament_target_dependencies(pure_pursuit_node  
   rclcpp geometry_msgs ackermann_msgs nav_msgs sensor_msgs std_msgs visualization_msgs tf2_ros
 )
