@@ -70,7 +70,7 @@ void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg)
     double curvature = 1.0 / r; //we calculate our curvature on slide 26
 
     // Convert curvature to steering angle in degrees
-    double steering_angle_deg = std::atan(curvature) * (180.0 / M_PI);
+    double steering_angle_deg = -std::atan(curvature) * (180.0 / M_PI);
     //clamping steering angle
     steering_angle_deg = std::max(std::min(steering_angle_deg, max_steering_angle), -max_steering_angle);
 
