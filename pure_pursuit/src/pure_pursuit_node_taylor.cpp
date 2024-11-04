@@ -12,7 +12,6 @@
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "visualization_msgs/msg/marker.hpp"
-#include "visualization_msgs/msg/marker_array.hpp"
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -30,12 +29,15 @@ class PurePursuit : public rclcpp::Node
 private:
     rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher2_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscriber_;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscriber_;
     
     //main variables
     double lookahead_distance = 1.0; // Lookahead distance
     double max_steering_angle = 20.0; // Max steering angle
     double speed = 1.0; // Desired speed
+
+    // sim pose topic
+    std::string sim_post_topic = "/ego_racecar/odom";
     
     float deg_to_rad(float degree){
             return degree * M_PI / 180.0;
@@ -101,11 +103,11 @@ private:
     
     
     void visualizer(float x_position, float y_position, int ID){
-        RCLCPP_INFO(this->get_logger(), "marker: %d", ID);
+        // RCLCPP_INFO(this->get_logger(), "marker: %d", ID);
         visualization_msgs::msg::Marker marker;
         marker.header.frame_id = "map";
         marker.header.stamp =  this->now();
-        marker.ns = "my_namespace";
+        marker.ns = "waypoints";
         marker.id = ID;
         marker.type = visualization_msgs::msg::Marker::SPHERE;
         marker.action = visualization_msgs::msg::Marker::ADD;
@@ -120,8 +122,8 @@ private:
         marker.scale.y = 0.1;
         marker.scale.z = 0.1;
         marker.color.a = 1.0; // Don't forget to set the alpha!
-        marker.color.r = (float)ID/100.0;
-        marker.color.g = 1.0-((float)ID/100.0);
+        marker.color.r = 0;
+        marker.color.g = 1.0;
         marker.color.b = 0.0;
         publisher2_->publish(marker);
     }
@@ -177,15 +179,19 @@ public:
         
         publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
         publisher2_ = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker_array", 1000);
-        subscriber_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-            "pf/odom/pose", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
+        subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
+            "/ego_racecar/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
         );        ////pf/viz/inferred_pose (maybe)
         RCLCPP_INFO(this->get_logger(), "Reading records");
         read_record();
     }
 
-    void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg)
+    void pose_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg)
     {
+        // I do need to translate from pose_msg (robot frame) to map frame
+
+
+
         // read_record(); //read and visualize the way_points
         //pose_msg -> pose -> orientation -> x,y,z,w //quaternion (all floats)
         /*
