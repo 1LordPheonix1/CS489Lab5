@@ -286,14 +286,40 @@ private:
         float dist1_pos = 0.0;
         float dist2_l = 100.0;
         float dist2_pos = 100.0;
-        
+
+        bool reverse = false;
         for (int i=0; i < waypoint_data.size(); i++){
             // only consider points within +/- angle_range of current yaw
-            if(waypoint_data[i][2] >= yaw - angle_range && waypoint_data[i][2] <= yaw + angle_range) {
+            float data_yaw = waypoint_data[i][2];
+            
+            if(data_yaw < -1.6) {
+                // add 2pi
+                data_yaw += 2*M_PI;
+            }
+            if(yaw < -1.6) {
+                reverse = true;
+                yaw += 2*M_PI;
+            } else {
+                reverse = false;
+            }
+            if(data_yaw >= yaw - angle_range && data_yaw <= yaw + angle_range) {
+                tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
+                tf2::Vector3 translation(waypoint_data[i][0]-x_pos, waypoint_data[i][1]-y_pos, 0);
 
-                float distance = dist(x_pos+l, waypoint_data[i][0], y_pos, waypoint_data[i][1]);
-                float distance2 = dist(x_pos, waypoint_data[i][0], y_pos, waypoint_data[i][1]);
+                tf2::Transform result(rotation, translation);
+                // if(reverse) {result = result.inverse();}
+                tf2::Vector3 output = result(tf2::Vector3(0,0,0));
                 
+                
+                // distance 1 is in robot frame
+                // float distance = dist(l, 0, output.getX(), output.getY());
+                float distance = dist(l, output.getX(), 0, output.getY());
+
+                // RCLCPP_INFO(this->get_logger(), "map: x: %f, y: %f, car: x: %f, y: %f, z: %f", waypoint_data[i][0], waypoint_data[i][1],output.getX(), output.getY(), output.getZ());
+
+                // distance 2
+                float distance2 = dist(x_pos, waypoint_data[i][0], y_pos, waypoint_data[i][1]);
+
                 // test for waypoint below l
                 if(distance <= dist1_l) {
                     if (distance2 <= l){
@@ -304,10 +330,12 @@ private:
                 }
 
                 // test for waypoint above l
-                if(distance2 >= l && distance2 <= dist2_l){
-                    dist2_l = distance;
-                    dist2_pos = distance2;
-                    index2 = i;
+                if(distance <= dist2_l) {
+                    if(distance2 >= l){
+                        dist2_l = distance;
+                        dist2_pos = distance2;
+                        index2 = i;
+                    }
                 }
             }
         }
