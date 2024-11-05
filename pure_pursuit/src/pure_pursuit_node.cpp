@@ -66,13 +66,17 @@ void pose_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg)
     double y = std::abs(dy); //we need |dy| 
     double r = (L * L) / (2 * y); //our r = ( L^2 ) / 2 |dy|
 
+    // r = C/2sin(angle) -> angle = asin(C/2r)
 
-    double curvature = 1.0 / r; //we calculate our curvature on slide 26
+    float steering_angle = std::asin(L/((float)2.0*r));
+
+
+    // double curvature = 1.0 / r; //we calculate our curvature on slide 26
 
     // Convert curvature to steering angle in degrees
-    double steering_angle_deg = -std::atan(curvature) * (180.0 / M_PI);
+    // double steering_angle_deg = -std::atan(curvature) * (180.0 / M_PI);
     //clamping steering angle
-    steering_angle_deg = std::max(std::min(steering_angle_deg, max_steering_angle), -max_steering_angle);
+    steering_angle = std::max(std::min(steering_angle, max_steering_angle), -max_steering_angle);
 
     // Create and publish the drive message
     auto drive_msg = ackermann_msgs::msg::AckermannDriveStamped();

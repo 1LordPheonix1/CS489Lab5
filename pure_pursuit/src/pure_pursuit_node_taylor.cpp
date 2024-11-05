@@ -11,10 +11,14 @@
 #include "geometry_msgs/msg/pose.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
+#include "geometry_msgs/msg/pose_stamped.hpp"
+
 #include "visualization_msgs/msg/marker.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 #include <tf2/LinearMath/Matrix3x3.h>
+#include <tf2/LinearMath/Vector3.h>
 #include <tf2/LinearMath/Quaternion.h>
 /// CHECK: include needed ROS msg type headers and libraries
 
@@ -36,10 +40,12 @@ private:
     
     //main variables
     double lookahead_distance = 1.0; // Lookahead distance
-    double max_steering_angle = 20.0; // Max steering angle
+    float max_steering_angle = 20.0; // Max steering angle
     double speed = 1.0; // Desired speed
 
     float angle_range = deg_to_rad(120.0);
+
+    std::vector<float> last_best_point;
 
     // sim pose topic
     std::string sim_post_topic = "/ego_racecar/odom";
@@ -305,7 +311,7 @@ private:
                 }
             }
         }
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "x_pos: %f, y_pos: %f, x1: %f, y1: %f, x2: %f, y2: %f, d1: %f, d2: %f", x_pos, y_pos, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "x_pos: %f, y_pos: %f, yaw: %f, x1: %f, y1: %f, x2: %f, y2: %f, d1: %f, d2: %f", x_pos, y_pos, yaw, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
 
         std::vector<float> point = interpolate_onto_circle_cartesian(l, x_pos, y_pos, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point found: %f, %f", point[0], point[1]);
@@ -331,6 +337,10 @@ private:
         marker.color.g = 0.0;
         marker.color.b = 0.0;
         publisher3_->publish(marker);
+        if(isnan(point[0]) || isnan(point[1])) {
+            return last_best_point;
+        }
+        last_best_point = point;
         return point;
     }
 
@@ -360,6 +370,7 @@ public:
     {
         // we do not need to translate, as waypoints were logged with that frame in mind.
 
+
         //pose_msg -> pose -> orientation -> x,y,z,w //quaternion (all floats)
         // float L = 1.0;
         float x_pos = 0.0;
@@ -383,20 +394,30 @@ public:
         double roll, pitch, yaw;
         mat.getRPY(roll, pitch, yaw);
 
+
         // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "pose: x: %f, y: %f, yaw: %f", pose_msg->pose.pose.position.x, pose_msg->pose.pose.position.y, yaw);
         
         std::vector<float> best_vector = find_best_waypoint(lookahead_distance, x_pos, y_pos, yaw);
         // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "Best waypoint x: %f, y: %f", best_vector[0], best_vector[1]);
 
-        // Calculate the lookahead target point
-        // target_pose.pose.pose.position.x = best_vector[1];
-        // target_pose.pose.pose.position.y = best_vector[2];
-        //target_pose.position.x = pose_msg->pose.position.x + lookahead_distance;
-        //target_pose.position.y = pose_msg->pose.position.y;
+        // robot frame is in ego_racecar/base_link
+        // position is in map frame 
+        // orientation is in robot frame (0,0,0,1)
+        // to convert, need to translate robot pos to point pos
+        // then rotate by yaw, to get dx,dy
+        
+        tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
+        tf2::Vector3 translation(best_vector[0]-x_pos, best_vector[1]-y_pos, 0);
+
+        tf2::Transform result(rotation, translation);
+        result = result.inverse();
+        // rotation
+        tf2::Vector3 output = result(tf2::Vector3(0,0,0));
+        // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "x: %f, y: %f, z: %f", output.getX(), output.getY(), output.getZ());
 
         // Calculate the x and y
-        double dx = best_vector[0] - pose_msg->pose.pose.position.x; //target x - our pose x
-        double dy = best_vector[1] - pose_msg->pose.pose.position.y; //target y - our pose y
+        double dx = -output.getX(); //target x - our pose x
+        double dy = -output.getY(); //target y - our pose y
         
         
         //this in slide formula (day 17 slide 25) in a sence our triangle to a curve
@@ -405,12 +426,16 @@ public:
         double y = std::abs(dy); //we need |dy|
         double r = (l * l) / (2 * y); //our r = ( L^2 ) / 2 |dy|
 
-        // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "dx: %f, dy: %f, l: %f", dx, dy, l);
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "dx: %f, dy: %f, l: %f", dx, dy, l);
 
-        float curvature = 1.0 / r; //we calculate our curvature on slide 26
+        // r = C/2sin(angle) -> angle = asin(C/2r)
+
+        float steering_angle = std::asin(l/((float)2.0*r));
+
+        // float curvature = 1.0 / r; //we calculate our curvature on slide 26
 
         // Convert curvature to steering angle in degrees
-        float steering_angle = deg_to_rad(curvature);
+        // float steering_angle = deg_to_rad(curvature);
 
         // assume going right
         bool left = (dy > 0) ? true : false;
@@ -419,17 +444,19 @@ public:
         }
 
         //clamping steering angle
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, radius: %f, speed: %f", rad_to_deg(steering_angle), r, speed);
+
         steering_angle = std::max(std::min(steering_angle, deg_to_rad(max_steering_angle)), -deg_to_rad(max_steering_angle));        
         // steering_angle = 0.0;
         //larger L more smooth, but more close calls (make L a parameter) or a function of vehicle speed
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, curvature: %f, speed: %f", rad_to_deg(steering_angle), curvature, speed);
+        // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, radius: %f, speed: %f", rad_to_deg(steering_angle), r, speed);
         
 
         // TODO: publish drive message, don't forget to limit the steering angle.
         ackermann_msgs::msg::AckermannDriveStamped ackermann_drive_result;
         ackermann_drive_result.drive.steering_angle = steering_angle;
         ackermann_drive_result.drive.speed = speed;
-        // publisher_->publish(ackermann_drive_result);
+        publisher_->publish(ackermann_drive_result);
         
     }
 
