@@ -124,7 +124,11 @@ private:
         visualization_msgs::msg::Marker marker;
         marker.header.frame_id = "map";
         marker.header.stamp =  this->now();
-        marker.ns = "waypoints";
+        if(ID == 1000) {
+            marker.ns = "target";
+        } else {
+            marker.ns = "waypoints";
+        }
         marker.id = ID;
         marker.type = visualization_msgs::msg::Marker::SPHERE;
         marker.action = visualization_msgs::msg::Marker::ADD;
@@ -139,59 +143,22 @@ private:
         marker.scale.y = 0.1;
         marker.scale.z = 0.1;
         marker.color.a = 1.0; // Don't forget to set the alpha!
-        marker.color.r = 0.0;
-        marker.color.g = 1.0;
-        marker.color.b = 0.0;
+        if(ID == 1000) {
+            marker.color.r = 1.0;
+            marker.color.g = 0.0;
+            marker.color.b = 0.0;
+        }
+        else {
+            marker.color.r = 0.0;
+            marker.color.g = 1.0;
+            marker.color.b = 0.0;
+        }
         return marker;
         // publisher2_->publish(marker);
     }
-    
-    /*
-     topic options:
-     "visualization_marker_array"
-     
-     Line Strip
-     LINE_STRIP=4
-     only scale.x is used and it controls the width of the line segments.
-     need points set up
-     
-     visualization_msgs::Marker line_strip;
-       48     line_strip.header.frame_id = "/my_frame";
-       49     line_strip.header.stamp = this->now();
-       50     line_strip.ns = "points_and_lines";
-       51     line_strip.action = visualization_msgs::Marker::ADD;
-       52     line_strip.pose.orientation.w = 1.0;
-     
-     
-     line_strip.type = visualization_msgs::Marker::LINE_STRIP;
-     line_strip.scale.x = 0.1;
-     
-     // Create the vertices for the points and lines
-       93     for (uint32_t i = 0; i < 100; ++i)
-       94     {
-       95       float y = 5 * sin(f + i / 100.0f * 2 * M_PI);
-       96       float z = 5 * cos(f + i / 100.0f * 2 * M_PI);
-       97
-       98       geometry_msgs::Point p;
-       99       p.x = (int32_t)i - 50;
-      100       p.y = y;
-      101       p.z = z;
-      102
-      103       points.points.push_back(p);
-      104       line_strip.points.push_back(p);
-      105
-      106       // The line list needs two points for each line
-      107       line_list.points.push_back(p);
-      108       p.z += 1.0;
-      109       line_list.points.push_back(p);
-      110     }
-     
-     
-     
-    */
 
 
-    float dist(float x1, float x2, float y1, float y2){
+    float dist(float x1, float y1, float x2, float y2){
         return std::sqrt(std::pow((x2-x1), 2) + std::pow((y2-y1), 2));
     }
 
@@ -203,7 +170,7 @@ private:
         // x2,y2 is waypoint wiht dist() >= l -> d2 (p2)
         
         // get d -> dist((x1,y1) to (x2,y2))
-        float d = dist(x1,x2,y1,y2);
+        float d = dist(x1,y1,x2,y2);
         
         // let Theta be angle between p2,p1,p0 - cosine rule
         float theta = std::acos((d*d + d1*d1 - d2*d2)/(2*d*d1));
@@ -279,6 +246,8 @@ private:
         // find 2 waypoints, one under l, one just over l, and interpolate
         int index1 = 0;
         int index2 = 0;
+        tf2::Vector3 point1;
+        tf2::Vector3 point2;
 
         // we want closest points to (x_pos+l, y_pos), and distance to (x_pos, y_pos) be as close to l
 
@@ -292,33 +261,23 @@ private:
             // only consider points within +/- angle_range of current yaw
             float data_yaw = waypoint_data[i][2];
             
-            if(data_yaw < -1.6) {
-                // add 2pi
-                data_yaw += 2*M_PI;
-            }
-            if(yaw < -1.6) {
-                reverse = true;
-                yaw += 2*M_PI;
-            } else {
-                reverse = false;
-            }
             if(data_yaw >= yaw - angle_range && data_yaw <= yaw + angle_range) {
                 tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
+                rotation = rotation.inverse();
+
+                // distance of car frame w.r.t. map frame
                 tf2::Vector3 translation(waypoint_data[i][0]-x_pos, waypoint_data[i][1]-y_pos, 0);
 
-                tf2::Transform result(rotation, translation);
-                // if(reverse) {result = result.inverse();}
-                tf2::Vector3 output = result(tf2::Vector3(0,0,0));
-                
+                tf2::Vector3 output = rotation*translation;                
                 
                 // distance 1 is in robot frame
                 // float distance = dist(l, 0, output.getX(), output.getY());
-                float distance = dist(l, output.getX(), 0, output.getY());
+                float distance = dist(l, 0, output.getX(), output.getY());
 
                 // RCLCPP_INFO(this->get_logger(), "map: x: %f, y: %f, car: x: %f, y: %f, z: %f", waypoint_data[i][0], waypoint_data[i][1],output.getX(), output.getY(), output.getZ());
 
                 // distance 2
-                float distance2 = dist(x_pos, waypoint_data[i][0], y_pos, waypoint_data[i][1]);
+                float distance2 = dist(x_pos, y_pos, waypoint_data[i][0], waypoint_data[i][1]);
 
                 // test for waypoint below l
                 if(distance <= dist1_l) {
@@ -326,6 +285,7 @@ private:
                         dist1_pos = distance2;
                         dist1_l = distance;
                         index1 = i;
+                        point1 = output;
                     }
                 }
 
@@ -335,41 +295,28 @@ private:
                         dist2_l = distance;
                         dist2_pos = distance2;
                         index2 = i;
+                        point2 = output;
                     }
                 }
             }
         }
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "x_pos: %f, y_pos: %f, yaw: %f, x1: %f, y1: %f, x2: %f, y2: %f, d1: %f, d2: %f", x_pos, y_pos, yaw, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point1: x: %f, y: %f, z: %f",point1.getX(), point1.getY(), point1.getZ());
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point2: x: %f, y: %f, z: %f",point2.getX(), point2.getY(), point2.getZ());
 
         std::vector<float> point = interpolate_onto_circle_cartesian(l, x_pos, y_pos, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point found: %f, %f", point[0], point[1]);
-        visualization_msgs::msg::Marker marker;
-        marker.header.frame_id = "map";
-        marker.header.stamp =  this->now();
-        marker.ns = "target";
-        marker.id = 1000;
-        marker.type = visualization_msgs::msg::Marker::SPHERE;
-        marker.action = visualization_msgs::msg::Marker::ADD;
-        marker.pose.position.x = point[0];
-        marker.pose.position.y = point[1];
-        marker.pose.position.z = 0.1;
-        marker.pose.orientation.x = 0.0; //can get rid of default zero ones
-        marker.pose.orientation.y = 0.0;
-        marker.pose.orientation.z = 0.0;
-        marker.pose.orientation.w = 1.0;
-        marker.scale.x = 0.1;
-        marker.scale.y = 0.1;
-        marker.scale.z = 0.1;
-        marker.color.a = 1.0; // Don't forget to set the alpha!
-        marker.color.r = 1.0;
-        marker.color.g = 0.0;
-        marker.color.b = 0.0;
+        visualization_msgs::msg::Marker marker = visualizer(point[0], point[1], 1000);
         publisher3_->publish(marker);
         if(isnan(point[0]) || isnan(point[1])) {
             return last_best_point;
         }
         last_best_point = point;
-        return point;
+
+        // speed is avg of the 2 waypoints
+        float speed = (waypoint_data[index1][3]+waypoint_data[index2][3])/2.0;
+
+        return {point[0], point[1], speed};
     }
 
 public:
@@ -396,14 +343,11 @@ public:
 
     void pose_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg)
     {
-        // we do not need to translate, as waypoints were logged with that frame in mind.
-
-
         //pose_msg -> pose -> orientation -> x,y,z,w //quaternion (all floats)
         // float L = 1.0;
         float x_pos = 0.0;
         float y_pos = 0.0;
-        nav_msgs::msg::Odometry target_pose;
+
         // TODO: find the current waypoint to track using methods mentioned in lecture
         //use L and try to find the farsthest point within that circle
         // all data is in waypoint_data
@@ -435,17 +379,17 @@ public:
         // then rotate by yaw, to get dx,dy
         
         tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
+        rotation = rotation.inverse();
+
+        // distance of car frame w.r.t. map frame
         tf2::Vector3 translation(best_vector[0]-x_pos, best_vector[1]-y_pos, 0);
 
-        tf2::Transform result(rotation, translation);
-        result = result.inverse();
-        // rotation
-        tf2::Vector3 output = result(tf2::Vector3(0,0,0));
+        tf2::Vector3 output = rotation*translation; 
         // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "x: %f, y: %f, z: %f", output.getX(), output.getY(), output.getZ());
 
         // Calculate the x and y
-        double dx = -output.getX(); //target x - our pose x
-        double dy = -output.getY(); //target y - our pose y
+        double dx = output.getX(); //target x - our pose x
+        double dy = output.getY(); //target y - our pose y
         
         
         //this in slide formula (day 17 slide 25) in a sence our triangle to a curve
@@ -460,11 +404,6 @@ public:
 
         float steering_angle = std::asin(l/((float)2.0*r));
 
-        // float curvature = 1.0 / r; //we calculate our curvature on slide 26
-
-        // Convert curvature to steering angle in degrees
-        // float steering_angle = deg_to_rad(curvature);
-
         // assume going right
         bool left = (dy > 0) ? true : false;
         if(!left) {
@@ -475,7 +414,6 @@ public:
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, radius: %f, speed: %f", rad_to_deg(steering_angle), r, speed);
 
         steering_angle = std::max(std::min(steering_angle, deg_to_rad(max_steering_angle)), -deg_to_rad(max_steering_angle));        
-        // steering_angle = 0.0;
         //larger L more smooth, but more close calls (make L a parameter) or a function of vehicle speed
         // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, radius: %f, speed: %f", rad_to_deg(steering_angle), r, speed);
         
@@ -483,6 +421,7 @@ public:
         // TODO: publish drive message, don't forget to limit the steering angle.
         ackermann_msgs::msg::AckermannDriveStamped ackermann_drive_result;
         ackermann_drive_result.drive.steering_angle = steering_angle;
+        // ackermann_drive_result.drive.speed = best_vector[2];
         ackermann_drive_result.drive.speed = speed;
         publisher_->publish(ackermann_drive_result);
         
