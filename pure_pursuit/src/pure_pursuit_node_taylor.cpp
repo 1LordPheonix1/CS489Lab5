@@ -37,6 +37,7 @@ private:
     
     //launch parameters variables
     std::string file = "/sim_ws/src/pure_pursuit/src/waypoints.csv";
+    std::string mode = "v";
     double lookahead_distance = 1.0; // Lookahead distance
     float max_steering_angle = 20.0; // Max steering angle
     double speed = 1.0; // Desired speed
@@ -322,12 +323,14 @@ public:
             //add parameters here if needed
         
         this->declare_parameter("file", "/sim_ws/src/pure_pursuit/src/waypoints.csv");
-        this->declare_parameter("la", 1.0);
+        this->declare_parameter("mode", "v");
+        this->declare_parameter("l", 1.0);
         this->declare_parameter("speed", 1.0);
         this->declare_parameter("mxangle", 20.0);
 
         get_parameter("file", file);
-        get_parameter("la", lookahead_distance);
+        get_parameter("mode", mode);
+        get_parameter("l", lookahead_distance);
         get_parameter("speed", speed);
         get_parameter("mxangle", max_steering_angle);
         
@@ -342,7 +345,17 @@ public:
         RCLCPP_INFO(this->get_logger(), "waypoints size: %d", waypoint_data.size());
         subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
             "/ego_racecar/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
-        );        ////pf/viz/inferred_pose (maybe)
+        ); 
+        if(mode == "sim") {
+            subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
+                "/ego_racecar/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
+            ); 
+        } else if(mode == "v") {
+            subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
+                "/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
+            );
+        }
+               ////pf/viz/inferred_pose (maybe)
         // subscriber_pfodom = this->create_subscription<nav_msgs::msg::Odometry>(
         //     "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose2_callback, this, _1)
         // ); 
