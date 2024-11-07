@@ -30,16 +30,24 @@ class Logger : public rclcpp::Node
     public:
     Logger() : Node("logger_node")
     {
-        logFileName = getLogFileName();
-        file.open(logFileName.c_str());
+        this->declare_parameter("file", "/sim_ws/src/pure_pursuit/src/waypoints.csv");
+        this->declare_parameter("logging", false);
+
+        get_parameter("file", fileName);
+        get_parameter("logging", logging);
+
+        if(!logging) {return;}
+
+        file.open(fileName.c_str());
         subscription = this->create_subscription<nav_msgs::msg::Odometry>("pf/pose/odom",1000,std::bind(&Logger::saveWaypoint, this, _1));
 
         timer_ = this->create_wall_timer(
             500ms, std::bind(&Logger::timer_callback, this)
         );
     }
+    std::string fileName;
     rclcpp::TimerBase::SharedPtr timer_;
-
+    bool logging = false;
     std::ofstream file;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscription;
 
