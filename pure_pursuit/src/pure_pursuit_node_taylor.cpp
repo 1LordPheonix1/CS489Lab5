@@ -341,7 +341,7 @@ public:
             //end of parameters
         if(logging) {return;}
 
-        
+
         publisher_drive = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
         publisher_markerArray = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array_array", 100);
         publisher_marker = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker_array", 100);
@@ -357,7 +357,7 @@ public:
             // ); 
         } else if(mode == "v") {
             subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
-                "/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
+                "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
             );
         }
                ////pf/viz/inferred_pose (maybe)
