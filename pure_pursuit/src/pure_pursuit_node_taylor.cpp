@@ -11,12 +11,9 @@
 #include "geometry_msgs/msg/pose.hpp"
 #include "ackermann_msgs/msg/ackermann_drive_stamped.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
-#include "geometry_msgs/msg/pose_stamped.hpp"
 
 #include "visualization_msgs/msg/marker.hpp"
 #include "visualization_msgs/msg/marker_array.hpp"
-#include <tf2_ros/transform_broadcaster.h>
-#include <tf2_ros/transform_listener.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -32,11 +29,11 @@ class PurePursuit : public rclcpp::Node
     // This is just a template, you are free to implement your own node!
 
 private:
-    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_;
-    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher2_;
-    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher3_;
-    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscriber_;
-    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr subscriber2_;
+    rclcpp::Publisher<ackermann_msgs::msg::AckermannDriveStamped>::SharedPtr publisher_drive;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr publisher_markerArray;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr publisher_marker;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscriber_ecoracecarOdom;
+    rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscriber_pfodom;
     
     //main variables
     double lookahead_distance = 1.0; // Lookahead distance
@@ -66,7 +63,7 @@ private:
         visualization_msgs::msg::MarkerArray MarkerArray;
         // marker.header.frame_id = "map";
         // marker.action = visualization_msgs::msg::Marker::DELETEALL;
-        // publisher2_->publish(marker);
+        // publisher_markerArray->publish(marker);
 
         // File pointer
         std::fstream fin;
@@ -114,7 +111,7 @@ private:
             id++;
         }
         fin.close();
-        publisher2_->publish(MarkerArray);
+        publisher_markerArray->publish(MarkerArray);
         RCLCPP_INFO(this->get_logger(), "done");
     }
     
@@ -154,7 +151,7 @@ private:
             marker.color.b = 0.0;
         }
         return marker;
-        // publisher2_->publish(marker);
+        // publisher_markerArray->publish(marker);
     }
 
 
@@ -257,17 +254,16 @@ private:
         float dist2_pos = 100.0;
 
         bool reverse = false;
+        tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
+        rotation = rotation.inverse();
         for (int i=0; i < waypoint_data.size(); i++){
             // only consider points within +/- angle_range of current yaw
             float data_yaw = waypoint_data[i][2];
             
             if(data_yaw >= yaw - angle_range && data_yaw <= yaw + angle_range) {
-                tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
-                rotation = rotation.inverse();
 
                 // distance of car frame w.r.t. map frame
                 tf2::Vector3 translation(waypoint_data[i][0]-x_pos, waypoint_data[i][1]-y_pos, 0);
-
                 tf2::Vector3 output = rotation*translation;                
                 
                 // distance 1 is in robot frame
@@ -307,7 +303,7 @@ private:
         std::vector<float> point = interpolate_onto_circle_cartesian(l, x_pos, y_pos, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point found: %f, %f", point[0], point[1]);
         visualization_msgs::msg::Marker marker = visualizer(point[0], point[1], 1000);
-        publisher3_->publish(marker);
+        publisher_marker->publish(marker);
         if(isnan(point[0]) || isnan(point[1])) {
             return last_best_point;
         }
@@ -323,22 +319,25 @@ public:
     PurePursuit() : Node("pure_pursuit_node"){
         // TODO: create ROS subscribers and publishers
             //add parameters here if needed
-        publisher_ = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
-        publisher2_ = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array_array", 100);
-        publisher3_ = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker_array", 100);
+        publisher_drive = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
+        publisher_markerArray = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array_array", 100);
+        publisher_marker = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker_array", 100);
         RCLCPP_INFO(this->get_logger(), "Reading records");
         read_record();
         RCLCPP_INFO(this->get_logger(), "waypoints size: %d", waypoint_data.size());
-        subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>(
+        subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
             "/ego_racecar/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
         );        ////pf/viz/inferred_pose (maybe)
-        // subscriber2_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-        //     "/pf/viz/inferred_pose", 1000, std::bind(&PurePursuit::pose2_callback, this, _1)
+        // subscriber_pfodom = this->create_subscription<nav_msgs::msg::Odometry>(
+        //     "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose2_callback, this, _1)
+        // ); 
+        // subscriber_pfodom = this->create_subscription<nav_msgs::msg::Odometry>(
+        //     "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
         // ); 
     }
 
-    void pose2_callback(const geometry_msgs::msg::PoseStamped::SharedPtr pose_msg) {
-        // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "pose2 x: %f, y: %f", pose_msg->pose.position.x, pose_msg->pose.position.y);
+    void pose2_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg) {
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "pf pose: x: %f, y: %f", pose_msg->pose.pose.position.x, pose_msg->pose.pose.position.y);
     }
 
     void pose_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg)
@@ -398,7 +397,7 @@ public:
         double y = std::abs(dy); //we need |dy|
         double r = (l * l) / (2 * y); //our r = ( L^2 ) / 2 |dy|
 
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "dx: %f, dy: %f, l: %f", dx, dy, l);
+        // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "dx: %f, dy: %f, l: %f", dx, dy, l);
 
         // r = C/2sin(angle) -> angle = asin(C/2r)
 
@@ -423,7 +422,7 @@ public:
         ackermann_drive_result.drive.steering_angle = steering_angle;
         // ackermann_drive_result.drive.speed = best_vector[2];
         ackermann_drive_result.drive.speed = speed;
-        publisher_->publish(ackermann_drive_result);
+        publisher_drive->publish(ackermann_drive_result);
         
     }
 

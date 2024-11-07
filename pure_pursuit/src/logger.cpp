@@ -32,10 +32,10 @@ class Logger : public rclcpp::Node
     {
         logFileName = getLogFileName();
         file.open(logFileName.c_str());
-        subscription = this->create_subscription<nav_msgs::msg::Odometry>("ego_racecar/odom",1000,std::bind(&Logger::saveWaypoint, this, _1));
+        subscription = this->create_subscription<nav_msgs::msg::Odometry>("pf/pose/odom",1000,std::bind(&Logger::saveWaypoint, this, _1));
 
         timer_ = this->create_wall_timer(
-            1000ms, std::bind(&Logger::timer_callback, this)
+            500ms, std::bind(&Logger::timer_callback, this)
         );
     }
     rclcpp::TimerBase::SharedPtr timer_;

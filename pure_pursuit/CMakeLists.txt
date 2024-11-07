@@ -22,7 +22,7 @@ foreach(PACKAGE
   sensor_msgs
   std_msgs
   visualization_msgs
-  Eigen3
+  # Eigen3
   tf2_ros)
 
   find_package(${PACKAGE} REQUIRED)
