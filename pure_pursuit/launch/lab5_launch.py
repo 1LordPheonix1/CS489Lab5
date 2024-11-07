@@ -8,7 +8,7 @@ def generate_launch_description():
 
     file = LaunchConfiguration('file')
     mode = LaunchConfiguration('mode')
-    lookahead = LaunchConfiguration('la')
+    lookahead = LaunchConfiguration('l')
     basespeed = LaunchConfiguration('speed')
     mxangle = LaunchConfiguration('mxangle')
 
