@@ -35,7 +35,8 @@ private:
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscriber_ecoracecarOdom;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr subscriber_pfodom;
     
-    //main variables
+    //launch parameters variables
+    std::string file = "/sim_ws/src/pure_pursuit/src/waypoints.csv";
     double lookahead_distance = 1.0; // Lookahead distance
     float max_steering_angle = 20.0; // Max steering angle
     double speed = 1.0; // Desired speed
@@ -69,7 +70,7 @@ private:
         std::fstream fin;
         
         // Open an existing file
-        fin.open("/sim_ws/src/pure_pursuit/src/waypoints.csv", std::ios::in);
+        fin.open(file, std::ios::in);
         RCLCPP_INFO(this->get_logger(), "file opened: %d", fin.is_open());
 
         // Get the roll number
@@ -319,6 +320,20 @@ public:
     PurePursuit() : Node("pure_pursuit_node"){
         // TODO: create ROS subscribers and publishers
             //add parameters here if needed
+        
+        this->declare_parameter("file", "/sim_ws/src/pure_pursuit/src/waypoints.csv");
+        this->declare_parameter("la", 1.0);
+        this->declare_parameter("speed", 1.0);
+        this->declare_parameter("mxangle", 20.0);
+
+        get_parameter("file", file);
+        get_parameter("la", lookahead_distance);
+        get_parameter("speed", speed);
+        get_parameter("mxangle", max_steering_angle);
+        
+        
+            //end of parameters
+        
         publisher_drive = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
         publisher_markerArray = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array_array", 100);
         publisher_marker = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker_array", 100);
