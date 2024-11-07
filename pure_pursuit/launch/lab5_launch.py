@@ -33,7 +33,7 @@ def generate_launch_description():
 
     gap_follow = Node(
         package='pure_pursuit',
-        executable='pure_pursuit_node_taylor',
+        executable='pure_pursuit_node',
         name='pure_pursuit',
         output='screen',
         parameters=[{'file': file}, {'la': lookahead}, {'speed': basespeed}, {'mxangle': mxangle}]
