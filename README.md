@@ -1,5 +1,22 @@
 # Lab 6: SLAM and Pure Pursuit
 
+### Launch Command
+```bash
+ros2 launch pure_pursuit lab5_launch.py mode:=sim logging:=false l:=1.0 speed:=1.0 mxangle:=20.0
+```
+#### Parameters:
+`file` = filepath to .csv file with waypoint information (default is `/sim_ws/src/pure_pursuit/src/waypoints.csv`)
+
+`mode` = set to either `sim` for simulator or `v` for physical vehicle
+
+`logging` = set to `true` if logging waypoint information
+
+`l` = maximum lookahead of waypoints for the vehicle
+
+`speed` = maximum speed of vehicle
+
+`mxangle` = maximum steering angle of vehicle
+
 ## I. Learning Goals
 
 - SLAM
