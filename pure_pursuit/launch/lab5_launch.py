@@ -9,7 +9,7 @@ def generate_launch_description():
     file = LaunchConfiguration('file')
     mode = LaunchConfiguration('mode')
     lookahead = LaunchConfiguration('l')
-    basespeed = LaunchConfiguration('speed')
+    speed = LaunchConfiguration('speed')
     mxangle = LaunchConfiguration('mxangle')
     logging = LaunchConfiguration('logging')
 
@@ -33,7 +33,7 @@ def generate_launch_description():
         default_value='1.0'
     )
     
-    basespeed_launch_arg = DeclareLaunchArgument(
+    speed_launch_arg = DeclareLaunchArgument(
         'speed',
         default_value='1.0'
     )
@@ -48,7 +48,7 @@ def generate_launch_description():
         executable='pure_pursuit_node',
         name='pure_pursuit',
         output='screen',
-        parameters=[{'file': file}, {'l': lookahead}, {'mode': mode}, {'speed': basespeed}, {'mxangle': mxangle}, {'logging': logging}]
+        parameters=[{'file': file}, {'l': lookahead}, {'mode': mode}, {'speed': speed}, {'mxangle': mxangle}, {'logging': logging}]
     )
 
     logger = Node(
@@ -56,12 +56,12 @@ def generate_launch_description():
         executable='logger_node',
         name='logger',
         output='screen',
-        parameters=[{'file': file}, {'logging': logging}]
+        parameters=[{'file': file}, {'logging': logging}, {'mode': mode}]
     )
 
     ld.add_action(file_launch_arg)
     ld.add_action(lookahead_launch_arg)
-    ld.add_action(basespeed_launch_arg)
+    ld.add_action(speed_launch_arg)
     ld.add_action(mode_launch_arg)
     ld.add_action(mxangle_launch_arg)
     ld.add_action(logging_launch_arg)

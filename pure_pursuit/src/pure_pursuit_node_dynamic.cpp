@@ -307,10 +307,10 @@ private:
         std::vector<float> point = interpolate_onto_circle_cartesian(l, x_pos, y_pos, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point found: %f, %f", point[0], point[1]);
         visualization_msgs::msg::Marker marker = visualizer(point[0], point[1], 1000);
-        publisher_marker->publish(marker);
         if(isnan(point[0]) || isnan(point[1])) {
             return last_best_point;
         }
+        publisher_marker->publish(marker);
         last_best_point = point;
 
         // speed is avg of the 2 waypoints

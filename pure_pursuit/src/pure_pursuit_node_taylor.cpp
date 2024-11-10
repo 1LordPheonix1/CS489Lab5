@@ -40,15 +40,17 @@ private:
     std::string mode = "v";
     bool logging = false;
     double lookahead_distance = 1.0; // Lookahead distance
-    float max_steering_angle = 20.0; // Max steering angle
+    float max_steering_angle = 30.0; // Max steering angle
     double speed = 1.0; // Desired speed
+    double currLookAhead = 1.0;      // Current Lookahead Distance
 
-    float angle_range = deg_to_rad(120.0);
+
+    float angle_range = deg_to_rad(90.0);
 
     std::vector<float> last_best_point;
 
     // sim pose topic
-    std::string sim_post_topic = "/ego_racecar/odom";
+    std::string sim_post_topic = "/eogo_racecar/odom";
 
     // waypoint data
     std::vector<std::vector<float>> waypoint_data;
@@ -124,7 +126,7 @@ private:
         visualization_msgs::msg::Marker marker;
         marker.header.frame_id = "map";
         marker.header.stamp =  this->now();
-        if(ID == 1000) {
+        if(ID == 10000) {
             marker.ns = "target";
         } else {
             marker.ns = "waypoints";
@@ -143,15 +145,21 @@ private:
         marker.scale.y = 0.1;
         marker.scale.z = 0.1;
         marker.color.a = 1.0; // Don't forget to set the alpha!
-        if(ID == 1000) {
+        if(ID == 10000) {
             marker.color.r = 1.0;
             marker.color.g = 0.0;
             marker.color.b = 0.0;
+            marker.scale.x = 0.2;
+            marker.scale.y = 0.2;
+            marker.scale.z = 0.2;
         }
         else {
             marker.color.r = 0.0;
             marker.color.g = 1.0;
             marker.color.b = 0.0;
+            marker.scale.x = 0.1;
+            marker.scale.y = 0.1;
+            marker.scale.z = 0.1;
         }
         return marker;
         // publisher_markerArray->publish(marker);
@@ -163,7 +171,7 @@ private:
     }
 
     // given 2 points
-    std::vector<float> interpolate_onto_circle(float l, float x_pos, float y_pos, float x1, float y1, float x2, float y2, float d1, float d2) {
+    /*std::vector<float> interpolate_onto_circle(float l, float x_pos, float y_pos, float x1, float y1, float x2, float y2, float d1, float d2) {
         // l is lookahead we want point for
         // x_pos, y_pos is our location (p0)
         // x1,y1 is waypoint with dist() <= l -> d1 (p1)
@@ -199,7 +207,7 @@ private:
         float target_y = z*N[1] + y1;
 
         return {target_x, target_y};
-    }
+    }*/
 
     // given 2 points
     std::vector<float> interpolate_onto_circle_cartesian(float l, float x_pos, float y_pos, float x1, float y1, float x2, float y2, float d1, float d2) {
@@ -240,6 +248,30 @@ private:
         return {target_x, target_y};
     }
     
+    // data_yaw is angle to test (0 to 2*M_PI)
+    // yaw is center angle (0 to 2*M_PI)
+    // angel_change is range
+    bool betweenAngles(float data_yaw, float yaw, float angle_change) {
+        // RCLCPP_INFO(this->get_logger(), "data_yaw: %f, yaw: %f, angle_change: %f", data_yaw, yaw, angle_change);
+        if(data_yaw >= yaw-angle_change && data_yaw <= yaw+angle_change) {
+            // no constraining
+            return true;
+        }
+        // if(yaw-change <0), wrap around 2*M_PI
+        if(yaw-angle_change < 0.0) {
+            if(data_yaw >= (2.0*M_PI + (yaw-angle_change))) {
+                return true;
+            }
+        }
+        // if(yaw+change >2*M_PI), wrap around 2*M_PI (0)
+        if(yaw+angle_change > 2.0*M_PI) {
+            if(data_yaw <= ((yaw+angle_change) - 2.0*M_PI)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     //
     std::vector<float> find_best_waypoint(float l, float x_pos, float y_pos, float yaw){
         // chance of waypoint being exactly l away is unlikely
@@ -252,9 +284,14 @@ private:
         // we want closest points to (x_pos+l, y_pos), and distance to (x_pos, y_pos) be as close to l
 
         float dist1_l = 100.0;
-        float dist1_pos = 0.0;
+        float dist1_pos = l;
         float dist2_l = 100.0;
-        float dist2_pos = 100.0;
+        float dist2_pos = l;
+
+        // fix yaw
+        if(yaw < 0.0) {
+            yaw += 2.0*M_PI;
+        }
 
         bool reverse = false;
         tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
@@ -262,8 +299,11 @@ private:
         for (int i=0; i < waypoint_data.size(); i++){
             // only consider points within +/- angle_range of current yaw
             float data_yaw = waypoint_data[i][2];
+            if(data_yaw < 0.0) {
+                data_yaw += 2.0*M_PI;
+            }
             
-            if(data_yaw >= yaw - angle_range && data_yaw <= yaw + angle_range) {
+            if(betweenAngles(data_yaw, yaw, angle_range)) {
 
                 // distance of car frame w.r.t. map frame
                 tf2::Vector3 translation(waypoint_data[i][0]-x_pos, waypoint_data[i][1]-y_pos, 0);
@@ -300,12 +340,18 @@ private:
             }
         }
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "x_pos: %f, y_pos: %f, yaw: %f, x1: %f, y1: %f, x2: %f, y2: %f, d1: %f, d2: %f", x_pos, y_pos, yaw, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point1: x: %f, y: %f, z: %f",point1.getX(), point1.getY(), point1.getZ());
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point2: x: %f, y: %f, z: %f",point2.getX(), point2.getY(), point2.getZ());
-
+        // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point1: x: %f, y: %f",point1.getX(), point1.getY());
+        // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point2: x: %f, y: %f",point2.getX(), point2.getY());
+        if(std::abs(point1.getX()) < 0.01 && std::abs(point1.getY()) < 0.01) {
+            // return other waypoint
+            return {waypoint_data[index2][0], waypoint_data[index2][1], waypoint_data[index2][2]};
+        } else if(std::abs(point2.getX()) < 0.01 && std::abs(point2.getY()) < 0.01) {
+            // return other waypoint
+            return {waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index1][2]};
+        }
         std::vector<float> point = interpolate_onto_circle_cartesian(l, x_pos, y_pos, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point found: %f, %f", point[0], point[1]);
-        visualization_msgs::msg::Marker marker = visualizer(point[0], point[1], 1000);
+        visualization_msgs::msg::Marker marker = visualizer(point[0], point[1], 10000);
         publisher_marker->publish(marker);
         if(isnan(point[0]) || isnan(point[1])) {
             return last_best_point;
@@ -323,7 +369,7 @@ public:
         // TODO: create ROS subscribers and publishers
             //add parameters here if needed
         
-        this->declare_parameter("file", "/sim_ws/src/pure_pursuit/src/waypoints.csv");
+        this->declare_parameter("file", "/sim_ws/src/pure_pursuit/src/AEBwaypoints.csv");
         this->declare_parameter("mode", "v");
         this->declare_parameter("logging", false);
         this->declare_parameter("l", 1.0);
@@ -352,39 +398,23 @@ public:
             subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
                 "/ego_racecar/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
             ); 
-            // subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
-            // "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
-            // ); 
         } else if(mode == "v") {
             subscriber_ecoracecarOdom = this->create_subscription<nav_msgs::msg::Odometry>(
                 "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
             );
         }
-               ////pf/viz/inferred_pose (maybe)
-        // subscriber_pfodom = this->create_subscription<nav_msgs::msg::Odometry>(
-        //     "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose2_callback, this, _1)
-        // ); 
-        // subscriber_pfodom = this->create_subscription<nav_msgs::msg::Odometry>(
-        //     "/pf/pose/odom", 1000, std::bind(&PurePursuit::pose_callback, this, _1)
-        // ); 
-    }
-
-    void pose2_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg) {
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "pf pose: x: %f, y: %f", pose_msg->pose.pose.position.x, pose_msg->pose.pose.position.y);
     }
 
     void pose_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg)
     {
         //pose_msg -> pose -> orientation -> x,y,z,w //quaternion (all floats)
         // float L = 1.0;
-        float x_pos = 0.0;
-        float y_pos = 0.0;
+        float x_pos = pose_msg->pose.pose.position.x;
+        float y_pos = pose_msg->pose.pose.position.y;
 
         // TODO: find the current waypoint to track using methods mentioned in lecture
         //use L and try to find the farsthest point within that circle
         // all data is in waypoint_data
-        x_pos = pose_msg->pose.pose.position.x;
-        y_pos = pose_msg->pose.pose.position.y;
 
         // Extract quaternion
         double qx = pose_msg->pose.pose.orientation.x;
@@ -398,10 +428,9 @@ public:
         double roll, pitch, yaw;
         mat.getRPY(roll, pitch, yaw);
 
-
         // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "pose: x: %f, y: %f, yaw: %f", pose_msg->pose.pose.position.x, pose_msg->pose.pose.position.y, yaw);
         
-        std::vector<float> best_vector = find_best_waypoint(lookahead_distance, x_pos, y_pos, yaw);
+        std::vector<float> best_vector = find_best_waypoint(currLookAhead, x_pos, y_pos, yaw);
         // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "Best waypoint x: %f, y: %f", best_vector[0], best_vector[1]);
 
         // robot frame is in ego_racecar/base_link
@@ -442,10 +471,25 @@ public:
             steering_angle *= -1;
         }
 
-        //clamping steering angle
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, radius: %f, speed: %f", rad_to_deg(steering_angle), r, speed);
+        //Limit speed for sharp turns
+        double min_speed = 0.5 * speed;
 
+        //clamping steering angle
         steering_angle = std::max(std::min(steering_angle, deg_to_rad(max_steering_angle)), -deg_to_rad(max_steering_angle));        
+
+        double sp = speed - ((std::abs(steering_angle) / deg_to_rad(max_steering_angle)) * (speed - min_speed)/speed);
+        double lookahead_change = (std::abs(steering_angle) / deg_to_rad(max_steering_angle) * (speed - min_speed))/speed;
+        sp = std::max(min_speed, std::min(speed, sp));  // Limit speed between min_speed and base_speed
+
+        //determine current lookahead based on speed of the vehicle
+        double min_lookAhead = 0.5 * lookahead_distance;
+
+        currLookAhead = std::max((lookahead_distance*(1.0-lookahead_change)), min_lookAhead);
+
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, radius: %f, speed: %f, lookahead: %f", rad_to_deg(steering_angle), r, sp, currLookAhead);
+        //RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "steering angle: %f, radius: %f, speed: %f", deg_to_rad(max_steering_angle), r, speed);
+
+
         //larger L more smooth, but more close calls (make L a parameter) or a function of vehicle speed
         // RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "angle: %f, radius: %f, speed: %f", rad_to_deg(steering_angle), r, speed);
         
@@ -454,7 +498,7 @@ public:
         ackermann_msgs::msg::AckermannDriveStamped ackermann_drive_result;
         ackermann_drive_result.drive.steering_angle = steering_angle;
         // ackermann_drive_result.drive.speed = best_vector[2];
-        ackermann_drive_result.drive.speed = speed;
+        ackermann_drive_result.drive.speed = sp;
         publisher_drive->publish(ackermann_drive_result);
         
     }
