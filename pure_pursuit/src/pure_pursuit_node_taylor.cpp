@@ -40,7 +40,7 @@ private:
     std::string mode = "v";
     bool logging = false;
     double lookahead_distance = 1.0; // Lookahead distance
-    float max_steering_angle = 30.0; // Max steering angle
+    float max_steering_angle = 25.0; // Max steering angle
     double speed = 1.0; // Desired speed
     double currLookAhead = 1.0;      // Current Lookahead Distance
 
@@ -477,7 +477,7 @@ public:
         //clamping steering angle
         steering_angle = std::max(std::min(steering_angle, deg_to_rad(max_steering_angle)), -deg_to_rad(max_steering_angle));        
 
-        double sp = speed - ((std::abs(steering_angle) / deg_to_rad(max_steering_angle)) * (speed - min_speed)/speed);
+        double sp = speed * ((std::abs(steering_angle) / deg_to_rad(max_steering_angle)) * (speed - min_speed)/speed);
         double lookahead_change = (std::abs(steering_angle) / deg_to_rad(max_steering_angle) * (speed - min_speed))/speed;
         sp = std::max(min_speed, std::min(speed, sp));  // Limit speed between min_speed and base_speed
 
@@ -499,7 +499,7 @@ public:
         ackermann_drive_result.drive.steering_angle = steering_angle;
         // ackermann_drive_result.drive.speed = best_vector[2];
         ackermann_drive_result.drive.speed = sp;
-        publisher_drive->publish(ackermann_drive_result);
+        // publisher_drive->publish(ackermann_drive_result);
         
     }
 
