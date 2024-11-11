@@ -2,7 +2,7 @@
 
 ### Launch Command
 ```bash
-ros2 launch pure_pursuit lab5_launch.py mode:=sim logging:=false l:=1.0 speed:=1.0 mxangle:=20.0
+ros2 launch pure_pursuit lab5_launch.py mode:=sim logging:=false file:=/sim_ws/src/pure_pursuit/src/AEBwaypoints.csv mxangle:=35.0 speed:=2.0
 ```
 #### Parameters:
 `file` = filepath to .csv file with waypoint information (default is `/sim_ws/src/pure_pursuit/src/waypoints.csv`)
