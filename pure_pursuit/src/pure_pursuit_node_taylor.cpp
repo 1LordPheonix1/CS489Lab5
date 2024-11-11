@@ -45,7 +45,7 @@ private:
     double currLookAhead = 1.0;      // Current Lookahead Distance
 
 
-    float angle_range = deg_to_rad(90.0);
+    float angle_range = deg_to_rad(120.0);
 
     std::vector<float> last_best_point;
 
@@ -499,7 +499,7 @@ public:
         ackermann_drive_result.drive.steering_angle = steering_angle;
         // ackermann_drive_result.drive.speed = best_vector[2];
         ackermann_drive_result.drive.speed = sp;
-        // publisher_drive->publish(ackermann_drive_result);
+        publisher_drive->publish(ackermann_drive_result);
         
     }
 
