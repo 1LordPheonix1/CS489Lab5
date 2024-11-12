@@ -293,6 +293,8 @@ private:
             yaw += 2.0*M_PI;
         }
 
+        bool ignore = false;
+
         bool reverse = false;
         tf2::Matrix3x3 rotation(std::cos(yaw), -std::sin(yaw), 0, std::sin(yaw), std::cos(yaw), 0, 0, 0, 1);
         rotation = rotation.inverse();
@@ -330,6 +332,10 @@ private:
 
                 // test for waypoint above l
                 if(distance <= dist2_l) {
+                    if(distance2-l >= l/2.0) {
+                        // ignore this point
+                        ignore = true;
+                    }
                     if(distance2 >= l){
                         dist2_l = distance;
                         dist2_pos = distance2;
@@ -349,6 +355,12 @@ private:
             // return other waypoint
             return {waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index1][2]};
         }
+
+        if(ignore) {
+            // return point 1
+            return {waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index1][2]};
+        }
+
         std::vector<float> point = interpolate_onto_circle_cartesian(l, x_pos, y_pos, waypoint_data[index1][0], waypoint_data[index1][1], waypoint_data[index2][0], waypoint_data[index2][1], dist1_pos, dist2_pos);
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 250, "point found: %f, %f", point[0], point[1]);
         visualization_msgs::msg::Marker marker = visualizer(point[0], point[1], 10000);
@@ -476,8 +488,16 @@ public:
 
         //clamping steering angle
         steering_angle = std::max(std::min(steering_angle, deg_to_rad(max_steering_angle)), -deg_to_rad(max_steering_angle));        
+        double sp = speed;
+        if(std::abs(steering_angle) >= deg_to_rad(max_steering_angle)) {
+            sp = min_speed;
+        } else if(std::abs(steering_angle) >= deg_to_rad(max_steering_angle)/2.0) {
+            sp = (speed+min_speed)/2.0;
+        } else {
+            sp = speed;
+        }
 
-        double sp = speed * ((std::abs(steering_angle) / deg_to_rad(max_steering_angle)) * (speed - min_speed)/speed);
+        // double sp = speed * ((std::abs(steering_angle) / deg_to_rad(max_steering_angle)) * (speed - min_speed)/speed);
         double lookahead_change = (std::abs(steering_angle) / deg_to_rad(max_steering_angle) * (speed - min_speed))/speed;
         sp = std::max(min_speed, std::min(speed, sp));  // Limit speed between min_speed and base_speed
 
