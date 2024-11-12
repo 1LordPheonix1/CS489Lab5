@@ -59,7 +59,7 @@ class Logger : public rclcpp::Node
         RCLCPP_INFO(this->get_logger(), "beginning reading");
 
         timer_ = this->create_wall_timer(
-            1000ms, std::bind(&Logger::timer_callback, this)
+            500ms, std::bind(&Logger::timer_callback, this)
         );
     }
     std::string mode;
