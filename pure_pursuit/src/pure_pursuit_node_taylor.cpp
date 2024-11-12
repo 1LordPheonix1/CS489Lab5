@@ -484,7 +484,7 @@ public:
         }
 
         //Limit speed for sharp turns
-        double min_speed = 0.5 * speed;
+        double min_speed = 0.5*speed;
 
         //clamping steering angle
         steering_angle = std::max(std::min(steering_angle, deg_to_rad(max_steering_angle)), -deg_to_rad(max_steering_angle));        
