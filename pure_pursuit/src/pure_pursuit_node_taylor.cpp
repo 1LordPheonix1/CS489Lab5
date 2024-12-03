@@ -45,7 +45,7 @@ private:
     double currLookAhead = 1.0;      // Current Lookahead Distance
 
 
-    float angle_range = deg_to_rad(120.0);
+    float angle_range = deg_to_rad(90.0);
 
     std::vector<float> last_best_point;
 
@@ -401,8 +401,8 @@ public:
 
 
         publisher_drive = this->create_publisher<ackermann_msgs::msg::AckermannDriveStamped>("/drive", 10);
-        publisher_markerArray = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array_array", 100);
-        publisher_marker = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker_array", 100);
+        publisher_markerArray = this->create_publisher<visualization_msgs::msg::MarkerArray>("/visualization_marker_array", 100);
+        publisher_marker = this->create_publisher<visualization_msgs::msg::Marker>("/visualization_marker", 100);
         RCLCPP_INFO(this->get_logger(), "Reading records");
         read_record();
         RCLCPP_INFO(this->get_logger(), "waypoints size: %d", waypoint_data.size());
